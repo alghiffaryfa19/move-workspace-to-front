@@ -7,14 +7,23 @@ export default class AutoReorderWorkspace extends Extension {
         this._wm = global.workspace_manager;
 
         this._signal = this._wm.connect('active-workspace-changed', () => {
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 120, () => {
-                // 🚫 Jika masih di overview → jangan reorder
-                if (Main.overview.visible)
-                    return GLib.SOURCE_REMOVE;
+            // Kalau dari overview → tunggu sampai overview ditutup
+            if (Main.overview.visible) {
+                const id = Main.overview.connect('hidden', () => {
+                    Main.overview.disconnect(id);
 
-                this._moveToFront();
-                return GLib.SOURCE_REMOVE;
-            });
+                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                        this._moveToFront();
+                        return GLib.SOURCE_REMOVE;
+                    });
+                });
+            } else {
+                // Kalau bukan dari overview → langsung reorder
+                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    this._moveToFront();
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
         });
 
         this._reordering = false;
