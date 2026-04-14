@@ -1,52 +1,56 @@
-import Meta from 'gi://Meta';
-import Shell from 'gi://Shell';
 import GLib from 'gi://GLib';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
-let signalId = null;
-
-function moveWorkspaceToFront(activeIndex) {
-    const wm = global.workspace_manager;
-    const n = wm.n_workspaces;
-
-    if (activeIndex === 0 || activeIndex >= n)
-        return;
-
-    let activeWs = wm.get_workspace_by_index(activeIndex);
-    let firstWs = wm.get_workspace_by_index(0);
-
-    // Ambil semua window di workspace aktif
-    let windows = global.get_window_actors()
-        .map(actor => actor.meta_window)
-        .filter(w => w.get_workspace() === activeWs);
-
-    // Pindahkan semua window ke workspace pertama
-    windows.forEach(win => {
-        win.change_workspace(firstWs);
-    });
-
-    // Optional: kosongkan workspace lama
-    // (biar terasa seperti "dipindah")
-}
-
-export default class Extension {
+export default class AutoReorderWorkspace extends Extension {
     enable() {
-        const wm = global.workspace_manager;
+        this._wm = global.workspace_manager;
 
-        signalId = wm.connect('active-workspace-changed', () => {
-            let activeIndex = wm.get_active_workspace_index();
-
-            // Delay sedikit biar GNOME selesai transisi
+        this._signal = this._wm.connect('active-workspace-changed', () => {
             GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                moveWorkspaceToFront(activeIndex);
+                this._moveToFront();
                 return GLib.SOURCE_REMOVE;
             });
         });
     }
 
     disable() {
-        if (signalId) {
-            global.workspace_manager.disconnect(signalId);
-            signalId = null;
+        if (this._signal) {
+            this._wm.disconnect(this._signal);
+            this._signal = null;
         }
+    }
+
+    _moveToFront() {
+        const activeWs = this._wm.get_active_workspace();
+        const currentIndex = activeWs.index();
+
+        // Sudah di depan → skip
+        if (currentIndex === 0)
+            return;
+
+        // Hindari workspace kosong terakhir (dynamic workspace GNOME)
+        if (this._isEmptyDynamic(activeWs))
+            return;
+
+        try {
+            // 🔥 REORDER ASLI
+            this._wm.reorder_workspace(activeWs, 0);
+        } catch (e) {
+            log(`Reorder failed: ${e}`);
+        }
+    }
+
+    _isEmptyDynamic(workspace) {
+        // Cek dynamic workspace aktif
+        const settings = this.getSettings('org.gnome.mutter');
+        const isDynamic = settings.get_boolean('dynamic-workspaces');
+
+        if (!isDynamic)
+            return false;
+
+        const lastIndex = this._wm.get_n_workspaces() - 1;
+
+        return workspace.index() === lastIndex &&
+            workspace.list_windows().length === 0;
     }
 }
