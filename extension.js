@@ -1,16 +1,23 @@
 import GLib from 'gi://GLib';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 export default class AutoReorderWorkspace extends Extension {
     enable() {
         this._wm = global.workspace_manager;
 
         this._signal = this._wm.connect('active-workspace-changed', () => {
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 120, () => {
+                // 🚫 Jika masih di overview → jangan reorder
+                if (Main.overview.visible)
+                    return GLib.SOURCE_REMOVE;
+
                 this._moveToFront();
                 return GLib.SOURCE_REMOVE;
             });
         });
+
+        this._reordering = false;
     }
 
     disable() {
@@ -21,22 +28,25 @@ export default class AutoReorderWorkspace extends Extension {
     }
 
     _moveToFront() {
+        if (this._reordering)
+            return;
+
         const activeWs = this._wm.get_active_workspace();
         const currentIndex = activeWs.index();
 
-        // Sudah di depan → skip
         if (currentIndex === 0)
             return;
 
-        // Hindari workspace kosong terakhir (dynamic workspace GNOME)
         if (this._isEmptyDynamic(activeWs))
             return;
 
         try {
-            // 🔥 REORDER ASLI
+            this._reordering = true;
             this._wm.reorder_workspace(activeWs, 0);
         } catch (e) {
             log(`Reorder failed: ${e}`);
+        } finally {
+            this._reordering = false;
         }
     }
 
