@@ -1,1 +1,1 @@
-# move-workspace-to-front
+git clone https://github.com/alghiffaryfa19/move-workspace-to-front.git ~/.local/share/gnome-shell/extensions/move-workspace-to-front@ozan

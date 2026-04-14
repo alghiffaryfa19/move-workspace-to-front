@@ -1,0 +1,6 @@
+{
+  "uuid": "move-workspace-to-front@ozan",
+  "name": "Move Workspace To Front",
+  "description": "Move active workspace to front",
+  "shell-version": ["45", "46", "47", "48", "49"]
+}
